@@ -104,9 +104,3 @@ an [attach configuration](https://docs.nvidia.com/nsight-visual-studio-code-edit
 
 ## Support
 Reach out to us for feedback and questions via [our developer forum](https://forums.developer.nvidia.com/c/development-tools/nsight-vscode-edition/).
-
-## Data and telemetry
-
-This extension collects usage data and sends it to NVIDIA to help improve our products. This
-extension respects the `"telemetry.enableTelemetry"` setting, for more info see
-[Visual Studio Code Telemetry](https://code.visualstudio.com/docs/getstarted/telemetry).

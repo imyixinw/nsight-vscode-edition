@@ -386,7 +386,7 @@ export class CudaGdbSession extends GDBDebugSession {
 
     protected testMode = false;
 
-    protected telemetryInfoSent = false;
+
 
     private _cudaFocus: types.CudaFocus | undefined;
 
@@ -741,12 +741,6 @@ export class CudaGdbSession extends GDBDebugSession {
         }
 
         super.handleGDBAsync(resultClass, resultData);
-
-        if (cudaFocusRecord !== undefined && !this.telemetryInfoSent) {
-            this.telemetryInfoSent = true;
-            const systemInfo = await getSystemInfo(this.gdb);
-            this.sendEvent(new SystemInfoEvent(systemInfo));
-        }
     }
 
     protected handleGDBNotify(notifyClass: string, notifyData: any): void {

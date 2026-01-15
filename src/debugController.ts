@@ -20,6 +20,7 @@ import { CudaGdbSession } from './debugger/cudaGdbSession';
 import { CudaGdbServerSession } from './debugger/cudaGdbServerSession';
 import { CudaQnxGdbServerSession } from './debugger/cudaQnxGdbServerSession';
 import * as types from './debugger/types';
+import { TelemetryService } from './telemetryService';
 import * as utils from './debugger/utils';
 import { pickProcess } from './debugger/processList';
 
@@ -52,22 +53,31 @@ enum DebuggerMode {
 }
 
 class CudaDebugAdapterTracker implements vscode.DebugAdapterTracker {
+    private static readonly SESSION_LABEL = 'debug-session';
+
     constructor(private debugController: CudaDebugController) {}
 
     onError(error: Error): void {
         // An error with the debug adapter has occurred.
+        if (error) {
+            this.debugController.telemetry.trackError(error.name, error.message);
+        }
     }
 
     onExit(code: number | undefined, signal: string | undefined): void {
         // The debug adapter has exited with the given exit code or signal.
+        if (code !== undefined || signal) {
+            this.debugController.telemetry.trackExit(code, signal);
+        }
     }
 
     onWillStartSession(): void {
-        // Session is about to start
+        this.debugController.telemetry.startSession(CudaDebugAdapterTracker.SESSION_LABEL);
     }
 
     onWillStopSession(): void {
         this.debugController.updateDebuggerMode(DebuggerMode.design);
+        this.debugController.telemetry.endSession(CudaDebugAdapterTracker.SESSION_LABEL);
     }
 
     onWillReceiveMessage(message: any): void {
@@ -108,6 +118,12 @@ class CudaDebugAdapterTracker implements vscode.DebugAdapterTracker {
                     break;
                 }
 
+                case CudaDebugProtocol.Event.systemInfo: {
+                    const typedEvent = eventMessage as CudaDebugProtocol.SystemInfoEvent;
+                    this.debugController.telemetry.trackSystemInfo('debug-adapter', typedEvent?.body?.systemInfo);
+                    break;
+                }
+
                 default: {
                     break;
                 }
@@ -121,7 +137,11 @@ class CudaDebugController implements vscode.Disposable, vscode.DebugAdapterTrack
 
     private debuggerMode: DebuggerMode = DebuggerMode.design;
 
-    constructor(context: vscode.ExtensionContext) {
+    telemetry: TelemetryService;
+
+    constructor(context: vscode.ExtensionContext, telemetry: TelemetryService) {
+        this.telemetry = telemetry;
+
         context.subscriptions.push(this.focusStatusBarItem);
         this.focusStatusBarItem.command = cudaChangeDebugFocus;
         this.focusStatusBarItem.text = utils.formatCudaFocus();
@@ -150,30 +170,39 @@ class CudaDebugController implements vscode.Disposable, vscode.DebugAdapterTrack
     }
 
     async changeDebugFocus(): Promise<void> {
-        if (this.debuggerMode !== DebuggerMode.stopped) {
-            vscode.window.showWarningMessage('The debugger must be stopped in order to set the debug focus.');
-            return;
-        }
-
-        const newDebugFocus: string | undefined = await vscode.window.showInputBox({
-            ignoreFocusOut: true,
-            placeHolder: 'Set debug focus: block (?, ?, ?) thread (?, ?, ?)',
-            prompt: '',
-            validateInput(value: string): string | undefined | null | Thenable<string | undefined | null> {
-                // Validate that focus is set with the expected syntax
-                return '';
+        const tracker = this.telemetry.trackCommand(cudaChangeDebugFocus);
+        try {
+            if (this.debuggerMode !== DebuggerMode.stopped) {
+                tracker.cancel('stopped debugger');
+                vscode.window.showWarningMessage('The debugger must be stopped in order to set the debug focus.');
+                return;
             }
-        });
 
-        if (!newDebugFocus) {
-            return;
-        }
+            const newDebugFocus: string | undefined = await vscode.window.showInputBox({
+                ignoreFocusOut: true,
+                placeHolder: 'Set debug focus: block (?, ?, ?) thread (?, ?, ?)',
+                prompt: '',
+                validateInput(value: string): string | undefined | null | Thenable<string | undefined | null> {
+                    // Validate that focus is set with the expected syntax
+                    return '';
+                }
+            });
 
-        const typedDebugFocus: types.CudaFocus | undefined = utils.parseCudaSwFocus(newDebugFocus);
-        if (!typedDebugFocus) {
-            vscode.window.showWarningMessage('No block or thread was specified to switch the CUDA debug focus to.');
-        } else {
-            await vscode.debug.activeDebugSession?.customRequest(CudaDebugProtocol.Request.changeCudaFocus, { focus: typedDebugFocus });
+            if (!newDebugFocus) {
+                tracker.cancel('input dismissed');
+                return;
+            }
+
+            const typedDebugFocus: types.CudaFocus | undefined = utils.parseCudaSwFocus(newDebugFocus);
+            if (!typedDebugFocus) {
+                tracker.cancel('input invalid');
+                vscode.window.showWarningMessage('No block or thread was specified to switch the CUDA debug focus to.');
+            } else {
+                await vscode.debug.activeDebugSession?.customRequest(CudaDebugProtocol.Request.changeCudaFocus, { focus: typedDebugFocus });
+                tracker.complete();
+            }
+        } finally {
+            tracker.dispose();
         }
     }
 
@@ -191,9 +220,9 @@ class CudaDebugController implements vscode.Disposable, vscode.DebugAdapterTrack
     }
 }
 
-export function activateDebugController(context: vscode.ExtensionContext): void {
+export function activateDebugController(context: vscode.ExtensionContext, telemetry: TelemetryService): void {
     const cudaGdbFactory: vscode.DebugAdapterDescriptorFactory = new InlineDebugAdapterFactory();
-    const debugController: CudaDebugController = new CudaDebugController(context);
+    const debugController: CudaDebugController = new CudaDebugController(context, telemetry);
 
     context.subscriptions.push(
         vscode.debug.registerDebugAdapterDescriptorFactory(cudaGdbDebugType, cudaGdbFactory),

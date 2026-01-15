@@ -86,7 +86,7 @@ and productivity enhancements.
   [cuda-gdb](https://docs.nvidia.com/cuda/cuda-gdb/index.html), the NVIDIA tool for debugging CUDA.
 
 * **[Microsoft vscode-cpptools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cpptools)**:
-  Install Microsoft's C/C++ for Visual Studio Code to get Intellisense support for CUDA C++ code. 
+  Install Microsoft's C/C++ for Visual Studio Code to get Intellisense support for CUDA C++ code.
   Nsight VS Code Edition will automatically install this extension.
 
 ## Quick Start
@@ -107,6 +107,4 @@ Reach out to us for feedback and questions via [our developer forum](https://for
 
 ## Data and telemetry
 
-This extension collects usage data and sends it to NVIDIA to help improve our products. This
-extension respects the `"telemetry.enableTelemetry"` setting, for more info see
-[Visual Studio Code Telemetry](https://code.visualstudio.com/docs/getstarted/telemetry).
+Telemetry has been explicitly disabled in this extension. It does not collect or send any usage data.

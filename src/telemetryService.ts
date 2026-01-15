@@ -226,7 +226,7 @@ export class TelemetryService {
     }
 
     set isEnabled(value: boolean) {
-        this.client.isEnabled = value;
+        // Telemetry permanently disabled - setter intentionally does nothing
     }
 
     startSession(name: string): void {
